@@ -3499,36 +3499,23 @@ let cotizEditId = null;
 // el brochure de Consultores que va adjunto en las plantillas de allá.
 const EMAILJS_PROSPECTO_PUBLIC_KEY = 'YuwEEGTX8RkIi9Vch';
 const EMAILJS_PROSPECTO_TEMPLATE_ID = 'Prospecto_SG';
-const EMAILJS_PROSPECTO_SEGUIMIENTO_TEMPLATE_ID = 'Prospecto_SG_seguimiento';
 // Todos los correos de prospección (presentación y seguimientos) salen desde proveedores@.
 // Cuando proveedores@ esté conectado en EmailJS (Email Services → Add New Service), pega aquí su Service ID.
 const PROS_CORREO = 'proveedores@buzetaconsultores.cl';
 // Copia de cada envío. En las plantillas de EmailJS, el campo "CC" debe decir {{cc_email}}.
 const PROS_CORREO_COPIA = 'director@buzetaconsultores.cl';
-const EMAILJS_PROSPECTO_SERVICE_ID = '';
-// Brochure de Servicios Generales: cuando esté listo, súbelo a Supabase (invoices/publico/) y pega aquí el link.
-// Mientras esté vacío, el correo sale sin el botón "Ver brochure".
-const PROS_BROCHURE_URL = '';
+const EMAILJS_PROSPECTO_SERVICE_ID = 'service_bn5pgsp';
+// Brochure de Servicios Generales (Supabase, invoices/publico/). Si se deja vacío, el correo sale sin el botón "Ver brochure".
+const PROS_BROCHURE_URL = 'https://wttsnsttsxwujncicmqg.supabase.co/storage/v1/object/public/invoices/publico/Brochure_Buzeta_Servicios_Generales_v3.pdf';
 const PROS_BROCHURE_NOMBRE = 'Brochure_Buzeta_Servicios_Generales.pdf';
-// Servicios que nombra el correo (PROVISORIO: se definen junto con el brochure)
-const PROS_SERVICIOS = ['Implementación de software de gestión', 'Soporte técnico y capacitación', 'Servicios generales para empresas'];
+// Servicios que nombra el correo: las 3 áreas de la rueda "Nuestros Servicios" del brochure
+const PROS_SERVICIOS = ['Gestión de proyectos', 'Operaciones y mantenimiento', 'Ingeniería y automatización'];
 
-// Seguimiento: prueba la plantilla de seguimiento y, si no existe en EmailJS, usa la de siempre.
+// Presentación y seguimiento usan la misma plantilla: el texto de cada correo va en {{{contenido_html}}}.
 async function prosEnviarCorreo(datos){
   if(typeof emailjs === 'undefined') throw new Error('No se pudo cargar EmailJS. Revisa tu conexión.');
   if(!EMAILJS_PROSPECTO_SERVICE_ID) throw new Error(`Falta conectar ${PROS_CORREO} en EmailJS (Service ID vacío).`);
-  const servicio = EMAILJS_PROSPECTO_SERVICE_ID;
-  const intentos = datos.es_seguimiento
-    ? [[servicio, EMAILJS_PROSPECTO_SEGUIMIENTO_TEMPLATE_ID], [servicio, EMAILJS_PROSPECTO_TEMPLATE_ID]]
-    : [[servicio, EMAILJS_PROSPECTO_TEMPLATE_ID]];
-  for(const [i, [servicio, plantilla]] of intentos.entries()){
-    try{ return await emailjs.send(servicio, plantilla, datos, { publicKey: EMAILJS_PROSPECTO_PUBLIC_KEY }); }
-    catch(e){
-      const t = String(e && (e.text || e.message || e));
-      if(i === intentos.length - 1 || !/service|template/i.test(t)) throw e;
-      console.warn('EmailJS: se prueba la siguiente opción', servicio, plantilla, t);
-    }
-  }
+  return emailjs.send(EMAILJS_PROSPECTO_SERVICE_ID, EMAILJS_PROSPECTO_TEMPLATE_ID, datos, { publicKey: EMAILJS_PROSPECTO_PUBLIC_KEY });
 }
 let prospectos = [];
 const prosSeleccion = new Set();
@@ -3804,7 +3791,7 @@ function prosDatosCorreo(p, pdfUrl, quien){
   };
 }
 
-// Nombre de cada envío: el 1º es el "Prospecto" (Fernando) y los siguientes "Seguimiento 1, 2..." (Constanza)
+// Nombre de cada envío: el 1º es el "Prospecto" y los siguientes "Seguimiento 1, 2..." (todos de Raúl Molina)
 function prosTipoEnvio(n){ return n <= 1 ? 'Prospecto' : `Seguimiento ${n - 1}`; }
 function prosEnviosDetalle(p){ return Array.isArray(p.envios_detalle) ? p.envios_detalle : []; }
 
@@ -3888,7 +3875,7 @@ async function prosReenviar(id, btn){
   await loadProspectos();
 }
 
-// ---- Texto de los correos (Prospecto = Fernando, Seguimiento = Constanza) ----
+// ---- Texto de los correos (Prospecto y Seguimiento los firma Raúl Molina, encargado de proveedores@) ----
 // Este HTML es el que se envía (variable {{{contenido_html}}} de EmailJS) y el que queda en el PDF.
 function prosCorreoHtml(impacto, d){
   const esc = cotizEsc;
@@ -3897,58 +3884,73 @@ function prosCorreoHtml(impacto, d){
   const logo = `${SUPABASE_URL}/storage/v1/object/public/invoices/marca/logo-sgs-correo.png`;
   const c = impacto === 1 ? {
     parrafos: [
-      `Mi nombre es Fernando Buzeta Salazar, Director de Buzeta Servicios Generales SpA, empresa de la Región de Coquimbo. Nos gustaría ser el ${verde('Socio Estratégico de: ' + esc(empresa))}.`,
-      'Sabemos que el día a día de una empresa exige soluciones confiables y una respuesta oportuna. Nosotros nos encargamos de eso, para que usted se enfoque en hacer crecer su negocio.'],
-    recuadro: 'Nuestros Servicios:',
-    adjunto: 'Le comparto nuestro brochure con el detalle de nuestros servicios:',
+      `Mi nombre es Raúl Molina, Gerente de Proyectos e Ingeniería de Buzeta Servicios Generales SpA, empresa de la Región de Coquimbo. Nos gustaría ser el ${verde('Socio Estratégico de ' + esc(empresa))}.`,
+      'Integramos ingeniería, automatización y gestión de proyectos, con experiencia en terreno, para que su operación se mantenga segura, confiable y continua.'],
+    recuadro: 'Nuestras áreas de servicio',
     pregunta: '¿Le parece si agendamos una reunión de 15 minutos esta semana para conocer sus necesidades?',
     correo: PROS_CORREO,
-    firma: '<strong style="color:#0a2426;">Fernando Buzeta Salazar</strong><br>Director | Buzeta Servicios Generales SpA<br>+56 9 5494 7757'
+    firma: '<strong style="color:#0a2426;">Raúl Molina</strong><br>Gerente de Proyectos e Ingeniería | Buzeta Servicios Generales SpA'
   } : {
     parrafos: [
-      'Mi nombre es Constanza Buzeta, del área de ventas de Buzeta Servicios Generales SpA. Le escribo para hacer seguimiento a la presentación que le envió hace unos días nuestro director, Fernando Buzeta Salazar, y asegurarme de que la información le haya llegado.',
-      `Nos sigue interesando mucho ser el ${verde('Socio Estratégico de su Empresa')}, para que usted se enfoque en hacer crecer su negocio.`],
-    recuadro: 'Le recordamos Nuestros Servicios:',
-    adjunto: 'Le comparto otra vez nuestro brochure:',
+      'Le escribe nuevamente Raúl Molina, de Buzeta Servicios Generales SpA, para hacer seguimiento a la presentación que le envié hace unos días y asegurarme de que la información le haya llegado.',
+      `Nos sigue interesando mucho ser el ${verde('Socio Estratégico de ' + esc(empresa))}, apoyando su operación con ingeniería, automatización y gestión de proyectos.`],
+    recuadro: 'Le recordamos nuestras áreas de servicio',
     pregunta: '¿Tendrá 15 minutos esta semana o la próxima para conversar? Me acomodo a su horario.',
     correo: PROS_CORREO,
-    firma: '<strong style="color:#0a2426;">Constanza Buzeta</strong><br>Área de Ventas | Buzeta Servicios Generales SpA'
+    firma: '<strong style="color:#0a2426;">Raúl Molina</strong><br>Gerente de Proyectos e Ingeniería | Buzeta Servicios Generales SpA'
   };
   const reunion = `mailto:${c.correo}?subject=${encodeURIComponent('Reunión - ' + empresa)}`;
-  const brochure = d.pdf_url ? `<p style="margin:20px 0 12px;">${c.adjunto}</p>
-<table cellpadding="0" cellspacing="0" style="margin:0 0 20px;"><tr><td style="border:2px solid #0f7c85;border-radius:24px;">
-<a href="${esc(d.pdf_url)}" style="display:inline-block;padding:10px 26px;color:#0f7c85;text-decoration:none;font-weight:bold;font-size:14px;">&#128196; Ver brochure</a>
-</td></tr></table>` : '<div style="height:20px;"></div>';
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f2;padding:24px 0;font-family:Arial,Helvetica,sans-serif;">
+  const cifra = (n, t) => `<td width="33.33%" align="center" valign="top" style="padding:18px 6px;color:#ffffff;">
+<div style="font-size:30px;line-height:1.05;font-weight:bold;color:#ffffff;">${n}</div>
+<div style="font-size:11px;line-height:1.35;color:#d8f6f5;margin-top:5px;">${t}</div></td>`;
+  const areas = PROS_SERVICIOS.map(s => `<td width="32%" align="center" valign="middle" bgcolor="#003f40" style="background:#003f40;background-image:linear-gradient(150deg,#00686b 0%,#003233 100%);border-radius:8px;padding:20px 8px;font-size:14px;line-height:1.3;font-weight:bold;color:#ffffff;">${esc(s)}</td>`)
+    .join('<td width="2%" style="width:2%;font-size:0;line-height:0;">&nbsp;</td>');
+  const botonBrochure = d.pdf_url ? `<td width="10" style="width:10px;font-size:0;line-height:0;">&nbsp;</td>
+<td align="center" style="border:2px solid #ffffff;border-radius:6px;"><a href="${esc(d.pdf_url)}" style="display:inline-block;padding:12px 18px;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;">Ver brochure</a></td>` : '';
+  return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#e4ecec;padding:28px 10px;font-family:Arial,Helvetica,sans-serif;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
-<tr><td align="center" style="background:#ffffff;padding:22px 24px 18px;">
-<img src="${logo}" width="240" alt="Buzeta Servicios Generales" crossorigin="anonymous" style="display:block;border:0;width:240px;max-width:70%;height:auto;margin:0 auto;">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">
+<tr><td align="left" style="background:#ffffff;padding:18px 32px;">
+<img src="${logo}" width="160" alt="Buzeta Servicios Generales" crossorigin="anonymous" style="display:block;border:0;width:160px;max-width:60%;height:auto;">
 </td></tr>
-<tr><td align="center" bgcolor="#0a2426" style="background:#0a2426;background-image:linear-gradient(160deg,#0f3436 0%,#0a2426 60%,#0f7c85 100%);padding:20px 32px;">
-<div style="color:#ffffff;font-size:20px;font-weight:bold;line-height:1.2;">Buzeta Servicios Generales</div>
-<div style="color:#cfe4e4;font-size:13px;line-height:1.4;margin-top:4px;">Soluciones para su empresa</div>
+<tr><td align="left" bgcolor="#003233" style="background:#003233;background-image:linear-gradient(125deg,#002a2b 0%,#004f50 55%,#00979b 100%);padding:40px 32px 38px;">
+<div style="color:#5fece7;font-size:12px;font-weight:bold;letter-spacing:1.2px;line-height:1.5;margin-bottom:12px;">INGENIERÍA &middot; AUTOMATIZACIÓN &middot; GESTIÓN DE PROYECTOS</div>
+<div style="color:#ffffff;font-size:36px;font-weight:bold;line-height:1.12;margin-bottom:14px;">Su operación<br>no puede detenerse.</div>
+<div style="color:#e3f7f6;font-size:16px;line-height:1.5;margin-bottom:24px;">Aseguramos la continuidad operacional de su industria, desde la ingeniería hasta la puesta en marcha.</div>
+<table cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="#5fece7" style="background:#5fece7;border-radius:6px;"><a href="${esc(reunion)}" style="display:inline-block;padding:14px 26px;color:#002a2b;text-decoration:none;font-weight:bold;font-size:15px;">Agendemos 15 minutos</a></td></tr></table>
 </td></tr>
-<tr><td style="padding:32px;color:#28312a;font-size:15px;line-height:1.6;">
-<p style="margin:0 0 16px;"><strong>${esc(d.saludo)}</strong></p>
-${c.parrafos.map((t, i) => `<p style="margin:0 0 ${i === c.parrafos.length - 1 ? 20 : 16}px;">${t}</p>`).join('\n')}
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f8f8;border-left:4px solid #0f7c85;border-radius:4px;">
-<tr><td style="padding:16px 20px;font-size:14px;color:#0a2426;line-height:1.9;">
-<strong>${c.recuadro}</strong><br>${PROS_SERVICIOS.map(s => '&#10003; ' + esc(s)).join('<br>')}
-</td></tr></table>
-${brochure}
-<p style="margin:0 0 24px;">${c.pregunta}</p>
-<table cellpadding="0" cellspacing="0"><tr><td style="background:#0f7c85;border-radius:24px;">
-<a href="${esc(reunion)}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;">Agendar reunión</a>
-</td></tr></table>
-<p style="margin:28px 0 0;">Saludos cordiales,</p>
-<p style="margin:8px 0 0;font-size:14px;line-height:1.5;">
+<tr><td bgcolor="#00858a" style="background:#00858a;padding:0 12px;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr>${cifra('35+', 'años de experiencia en dirección')}${cifra('11', 'servicios técnicos especializados')}${cifra('2', 'oficinas: Coquimbo y Antofagasta')}</tr></table>
+</td></tr>
+<tr><td style="padding:30px 32px 8px;color:#2c3e3f;font-size:15px;line-height:1.6;">
+<p style="margin:0 0 14px;color:#004f50;"><strong>${esc(d.saludo)}</strong></p>
+${c.parrafos.map(t => `<p style="margin:0 0 14px;">${t}</p>`).join('\n')}
+</td></tr>
+<tr><td style="padding:10px 32px 0;">
+<div style="margin:0 0 10px;font-size:12px;font-weight:bold;letter-spacing:1px;color:#00686b;">${c.recuadro.toUpperCase()}</div>
+<table width="100%" cellpadding="0" cellspacing="0"><tr>${areas}</tr></table>
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;"><tr><td bgcolor="#e2f8f7" style="background:#e2f8f7;border-radius:8px;padding:13px 16px;font-size:14px;line-height:1.4;color:#003f40;"><strong>ACIW</strong> &middot; Aplicación de Control Interno Web</td></tr></table>
+</td></tr>
+<tr><td style="padding:26px 32px 28px;">
+<div style="margin:0 0 8px;font-size:12px;font-weight:bold;letter-spacing:1px;color:#00686b;">EXPERIENCIA DE NUESTRO EQUIPO TÉCNICO</div>
+<div style="font-size:22px;line-height:1.25;font-weight:bold;color:#003f40;">BHP &nbsp;&middot;&nbsp; Aguas Antofagasta</div>
+<div style="font-size:13px;line-height:1.5;color:#526667;margin-top:6px;">Automatización, redes de control y transición a la operación en faena y planta.</div>
+</td></tr>
+<tr><td bgcolor="#003f40" style="background:#003f40;background-image:linear-gradient(125deg,#002a2b 0%,#00686b 100%);padding:28px 32px;">
+<div style="color:#ffffff;font-size:18px;font-weight:bold;line-height:1.35;margin-bottom:18px;">${c.pregunta}</div>
+<table cellpadding="0" cellspacing="0"><tr>
+<td align="center" bgcolor="#5fece7" style="background:#5fece7;border:2px solid #5fece7;border-radius:6px;"><a href="${esc(reunion)}" style="display:inline-block;padding:12px 18px;color:#002a2b;text-decoration:none;font-weight:bold;font-size:14px;">Agendar reunión</a></td>
+${botonBrochure}
+</tr></table>
+</td></tr>
+<tr><td style="padding:24px 32px;font-size:14px;line-height:1.5;color:#2c3e3f;">
+Saludos cordiales,<br><br>
 ${c.firma}<br>
-<a href="mailto:${c.correo}" style="color:#0f7c85;">${c.correo}</a>
-</p>
+<a href="mailto:${c.correo}" style="color:#00686b;">${c.correo}</a>
 </td></tr>
-<tr><td style="background:#eef2f2;padding:16px 32px;color:#7a8785;font-size:11px;line-height:1.5;text-align:center;">
-Buzeta Servicios Generales SpA &middot; RUT 78.481.557-9 &middot; Pan de Az&uacute;car, Coquimbo.<br>
+<tr><td bgcolor="#f1f5f5" style="background:#f1f5f5;padding:16px 32px;color:#6b7c7d;font-size:11px;line-height:1.6;">
+<strong>Buzeta Servicios Generales SpA</strong> &middot; RUT 78.481.557-9<br>
+Ruta D409, 4831, Strip Center Espacio Río, oficinas 7, 8 y 9, Coquimbo &middot; Cerro Paranal 380, of. 205, Antofagasta<br>
 Si no desea recibir más comunicaciones, responda "NO" a este correo.
 </td></tr>
 </table>
@@ -3969,7 +3971,7 @@ async function prosCorreoPdfBlob(envios){
       const canvas = await html2canvas(caja, { scale: 2, backgroundColor: '#eef2f2', useCORS: true });
       if(i) pdf.addPage();
       pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11); pdf.setTextColor(10, 36, 38);
-      pdf.text(`${prosTipoEnvio(n)} · ${n === 1 ? 'presentación enviada por Fernando Buzeta' : 'enviado por Constanza Buzeta'}`, 12, 12);
+      pdf.text(`${prosTipoEnvio(n)} · ${n === 1 ? 'presentación enviada por Raúl Molina' : 'enviado por Raúl Molina'}`, 12, 12);
       pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9); pdf.setTextColor(80, 90, 95);
       pdf.text(p ? `Para: ${p.nombre ? p.nombre + ' <' + p.email + '>' : p.email}` : 'Para: (correo del prospecto)', 12, 17.5);
       const lineasAsunto = pdf.splitTextToSize(`Asunto: ${datos.asunto}`, 186).slice(0, 2);
